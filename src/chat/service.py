@@ -30,8 +30,8 @@ class WebSocketsManager():
         return self.ConnectedUsers.get(user_id)
 
 class MessagesManager():
-    def create_message(sender:str, channel:str, content:str):
-        return {"sender":sender, "channel":channel, "content":content}
+    def create_message(sender:str, channel:str, content:str, message_type:str="message"):
+        return {"sender":sender, "channel":channel, "content":content, "message_type":message_type}
     
     def __init__(self, channels_manager, sockets_manager):
         self.channels_manager = channels_manager
@@ -58,3 +58,6 @@ class MessagesManager():
                 await socket_to_send_to.send_json(message)
             else:
                 await self.store_missed_message(user, message) #Store data in Redis for notifications
+    
+    async def sendNewChannelMessage(self, message, user):
+        await self.sendMessage(message)

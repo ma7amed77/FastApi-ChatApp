@@ -53,20 +53,27 @@ async def get_channel_messages(channel_id: str, user_id: str = Query()):
     return {"messages": messages}
 
 @channels_router.post("/invite/{channel_id}")
-async def invite_user(channel_id: str, user_id: str = Query()):
-    await channels_manager.add_user_to_channel(user_id, channel_id)
-    return {"message": f"User {user_id} joined channel {channel_id}."}
+async def invite_user(channel_id: str, user_id: str = Query(), added_user_id: str = Query()):
+    await channels_manager.add_user_to_channel(added_user_id, channel_id)
+    message = MessagesManager.create_message("system", channel_id, f"{user_id} invited {added_user_id}", message_type = "new_channel")
+    await messages_manager.sendNewChannelMessage(message, added_user_id)
+    return {"message": f"User {added_user_id} joined channel {channel_id}."}
 
 @channels_router.post("/create_group")
-async def add_contact(user_id: str = Query(), channel_id: str = Query()):
+async def create_group(user_id: str = Query(), channel_id: str = Query()):
     await channels_manager.creat_channel(channel_id)
     await channels_manager.add_user_to_channel(user_id, channel_id)
+    message = MessagesManager.create_message("system", channel_id, f"{user_id} Created a group", message_type = "new_channel")
+    await messages_manager.sendNewChannelMessage(message, user_id)
     return {"message": f"Created channel with id {channel_id}."}
 
 @channels_router.post("/add_contact")
 async def add_contact(user_id: str = Query(), added_user_id: str = Query()):
     channel_id = await channels_manager.make_2user_channel_id(user_id, added_user_id)
     await channels_manager.creat_channel(channel_id)
+    message = MessagesManager.create_message("system", channel_id, f"{user_id} invited you", message_type = "new_channel")
     await channels_manager.add_user_to_channel(user_id, channel_id)
     await channels_manager.add_user_to_channel(added_user_id, channel_id)
+    await messages_manager.sendNewChannelMessage(message, user_id)
+    await messages_manager.sendNewChannelMessage(message, added_user_id)
     return {"message": f"User {user_id} added to channel {channel_id}."}

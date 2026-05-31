@@ -12,7 +12,11 @@
             var channels_masseges = {}
             const ws = new WebSocket(`ws://localhost:8000/ws?user_id=${user_id}`)
             ws.onmessage = function(event) {
-                const { sender, channel, content } = JSON.parse(event.data)
+                const { sender, channel, content, message_type } = JSON.parse(event.data)
+                console.log(event.data)
+                if(message_type == "new_channel"){
+                    if (!channels_masseges[channel]) {fetchChannels(); console.log("ASD")}
+                }
 
                 if (!channels_masseges[channel]) {channels_masseges[channel] = []}
                 channels_masseges[channel].push({ "sender":sender, "channel":channel, "content":content})
@@ -63,8 +67,9 @@
 
             function switchChannel(channel) {
                 channel_id = channel
+                document.getElementById("channel_name").innerHTML = channel;
                 const messages = document.getElementById("messages")
-                messages.innerHTML = ""
+                messages.innerHTML = "";
                 (channels_masseges[channel] || []).forEach(({ sender, channel, content }) => {
                     const li = create_message(sender, channel, content)
                     messages.appendChild(li)
@@ -72,7 +77,6 @@
                 messages.scrollTop = messages.scrollHeight
             }
             fetchChannels()
-
             async function add_contact(other_user) {
                 const res = await fetch(`http://localhost:8000/channels/add_contact/?user_id=${user_id}&added_user_id=${other_user}`, {method:"POST"})
                 console.log(other_user)
@@ -81,6 +85,12 @@
 
             async function createGroup(group_id) {
                 const res = await fetch(`http://localhost:8000/channels/create_group/?user_id=${user_id}&channel_id=${group_id}`, {method:"POST"})
+                await fetchChannels()
+                switchChannel(group_id)
+            }
+
+            async function inviteUser(other_user) {
+                const res = await fetch(`http://localhost:8000/channels/invite/${channel_id}?user_id=${user_id}&added_user_id=${other_user}`, {method:"POST"})
                 await fetchChannels()
             }
         </script>
@@ -96,6 +106,10 @@
                 </button>
             </div>
             <div class="d-flex flex-column flex-grow-1 pt-4 overflow-hidden">
+                <div class="border-bottom fs-3 row px-3 pb-3">
+                    <h3 class="col" id="channel_name">global</h3>
+                    <button class="col-auto btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#inviteUserModal">Invite</button>
+                </div>
                 <ul id="messages" class="flex-grow-1 overflow-y-auto list-unstyled px-3 mb-0"></ul>
                 <form action="" onsubmit="sendmessage(event)" class="p-3">
                     <div class="row gx-2">
@@ -110,6 +124,8 @@
                 </form>
             </div>
         </div>
+
+        <!-- New Channel Window-->
         <div class="modal fade" id="newChatModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -128,6 +144,28 @@
                         <button class="btn btn-outline-success d-flex flex-column align-items-center gap-2 p-4 fs-5"
                             data-bs-dismiss="modal" onclick="createGroup(document.getElementById('newChatInput').value)">
                             Make a group
+                        </button>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- User invite Window -->
+        <div class="modal fade" id="inviteUserModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Invite user to group</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="m-3 mb-0">
+                        <input type="text" class="form-control" placeholder="User ID / Group Name" id="inviteUserInput">
+                    </div>
+                    <div class="modal-body d-flex gap-3 justify-content-center py-4">
+                        <button class="btn btn-outline-primary d-flex flex-column align-items-center gap-2 p-4 fs-5"
+                            data-bs-dismiss="modal" onclick="inviteUser(document.getElementById('inviteUserInput').value)">
+                            Invite User
                         </button>
                     </div>
                     
