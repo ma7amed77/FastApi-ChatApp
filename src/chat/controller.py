@@ -1,6 +1,7 @@
 from fastapi import WebSocket, WebSocketDisconnect, Query
 from fastapi.routing import APIRouter
 from .service import MessagesManager, ChannelsManager, WebSocketsManager
+import asyncio
 import logging
 
 logger =  logging.getLogger(__name__)
@@ -12,9 +13,6 @@ channels_manager = ChannelsManager()
 sockets_manager  = WebSocketsManager()
 messages_manager = MessagesManager(channels_manager, sockets_manager)
 
-@chat_router.on_event("startup")
-async def startup():
-    await messages_manager.channels_manager.creat_channel('global')
 
 @chat_router.websocket("/ws")
 async def websocket_endpoint(web_socket:WebSocket, user_id:str = Query()):
@@ -61,7 +59,6 @@ async def invite_user(channel_id: str, user_id: str = Query(), added_user_id: st
 
 @channels_router.post("/create_group")
 async def create_group(user_id: str = Query(), channel_id: str = Query()):
-    await channels_manager.creat_channel(channel_id)
     await channels_manager.add_user_to_channel(user_id, channel_id)
     message = MessagesManager.create_message("system", channel_id, f"{user_id} Created a group", message_type = "new_channel")
     await messages_manager.sendNewChannelMessage(message, user_id)
@@ -69,8 +66,7 @@ async def create_group(user_id: str = Query(), channel_id: str = Query()):
 
 @channels_router.post("/add_contact")
 async def add_contact(user_id: str = Query(), added_user_id: str = Query()):
-    channel_id = await channels_manager.make_2user_channel_id(user_id, added_user_id)
-    await channels_manager.creat_channel(channel_id)
+    channel_id = channels_manager.make_2user_channel_id(user_id, added_user_id)
     message = MessagesManager.create_message("system", channel_id, f"{user_id} invited you", message_type = "new_channel")
     await channels_manager.add_user_to_channel(user_id, channel_id)
     await channels_manager.add_user_to_channel(added_user_id, channel_id)

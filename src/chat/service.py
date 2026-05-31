@@ -1,22 +1,37 @@
 from fastapi import WebSocket
+import redis.asyncio as aioredis
+from src.config import Config
+
 
 class ChannelsManager():
     def __init__(self):
-        self.ChannelsUsers = {}
-    #This should be replaced with redis so I am making them async to not have bugs later
-    async def make_2user_channel_id(self, user1, user2):
+        self.redis = aioredis.StrictRedis(
+            host=Config.REDIS_HOST,
+            port=Config.REDIS_PORT,
+            db= 0,
+            decode_responses=True
+        )
+    def make_2user_channel_id(self, user1, user2):
         return "-".join(sorted([user1, user2]))
-    async def creat_channel(self, channel_id):
-        self.ChannelsUsers[channel_id] = set()
-        return channel_id
+    
     async def add_user_to_channel(self, user_id, channel_id):
-        self.ChannelsUsers[channel_id].add(user_id)
+        await self.redis.sadd(f"Chan:{channel_id}", user_id)
+        await self.redis.sadd(f"Usr:{user_id}", channel_id)
+
     async def get_channel_users(self, channel_id):
-        return [socket for socket in self.ChannelsUsers[channel_id]]
+        members = await self.redis.smembers(f"Chan:{channel_id}")
+        return [m for m in members]
+    
     async def is_user_in_channel(self, user_id, channel_id):
-        return user_id in self.ChannelsUsers.get(channel_id, set())
+        return await self.redis.sismember(f"Chan:{channel_id}", user_id)
+    
     async def get_user_channels(self, user_id):
-        return [channel for channel, users in self.ChannelsUsers.items() if user_id in users]
+        channels = await self.redis.smembers(f"Usr:{user_id}")
+        return [c for c in channels]
+    
+    async def remove_user_from_channel(self, user_id, channel_id):
+        await self.redis.srem(f"Chan:{channel_id}", user_id)
+        await self.redis.srem(f"Usr:{user_id}", channel_id)
     
 
 class WebSocketsManager():
