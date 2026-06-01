@@ -27,7 +27,7 @@ class ChannelsManager():
     
     async def get_user_channels(self, user_id):
         channels = await self.redis.smembers(f"Usr:{user_id}")
-        return [c for c in channels]
+        return [{'channel_id':c, 'channel_name':c} for c in channels]
     
     async def remove_user_from_channel(self, user_id, channel_id):
         await self.redis.srem(f"Chan:{channel_id}", user_id)
@@ -36,38 +36,39 @@ class ChannelsManager():
 
 class WebSocketsManager():
     def __init__(self):
-        self.ConnectedUsers = {}
+        self.connected_users = {}
     def connect_user(self, user_id, web_socket:WebSocket):
-        self.ConnectedUsers[user_id] = web_socket
+        self.connected_users[user_id] = web_socket
     def disconnect_user(self, user_id):
-        self.ConnectedUsers.pop(user_id, None)
+        self.connected_users.pop(user_id, None)
     def get_socket(self, user_id) ->WebSocket:
-        return self.ConnectedUsers.get(user_id)
+        return self.connected_users.get(user_id)
 
 class MessagesManager():
+    @staticmethod
     def create_message(sender:str, channel:str, content:str, message_type:str="message"):
         return {"sender":sender, "channel":channel, "content":content, "message_type":message_type}
     
     def __init__(self, channels_manager, sockets_manager):
         self.channels_manager = channels_manager
         self.sockets_manager = sockets_manager
-        self.ChannelMessages = {}
+        self.channel_messages = {}
     
-    async def get_channel_messages(self, channel_id): #This should be replaced with postgreSQL
-        return self.ChannelMessages.get(channel_id, [])
+    async def get_channel_messages(self, channel_id): #TODO This should be replaced with postgreSQL
+        return self.channel_messages.get(channel_id, [])
 
-    async def store_message(self, message): #This should be replaced with postgreSQL
-        if message['channel'] not in self.ChannelMessages: 
-            self.ChannelMessages[message['channel']] = []
-        self.ChannelMessages[message['channel']].append(message)
+    async def store_message(self, message): #TODO This should be replaced with postgreSQL
+        if message['channel'] not in self.channel_messages: 
+            self.channel_messages[message['channel']] = []
+        self.channel_messages[message['channel']].append(message)
 
     async def store_missed_message(self, user, message):
         pass
 
-    async def sendMessage(self, message):
+    async def send_message(self, message):
         users_to_send_to = await self.channels_manager.get_channel_users(message['channel'])
+        await self.store_message(message) #Store data in postgreSQL
         for user in users_to_send_to:
-            await self.store_message(message) #Store data in postgreSQL
             socket_to_send_to = self.sockets_manager.get_socket(user)
             if socket_to_send_to:
                 await socket_to_send_to.send_json(message)
@@ -75,4 +76,4 @@ class MessagesManager():
                 await self.store_missed_message(user, message) #Store data in Redis for notifications
     
     async def sendNewChannelMessage(self, message, user):
-        await self.sendMessage(message)
+        await self.send_message(message)

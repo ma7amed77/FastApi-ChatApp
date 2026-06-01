@@ -3,13 +3,14 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Document</title>
+        <title>FastAPI Chat</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">    
         <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         <script defer>
             const user_id = new URLSearchParams(window.location.search).get("user_id")
             var channel_id = "global"
             var channels_masseges = {}
+            var channels_list = []
             const ws = new WebSocket(`ws://localhost:8000/ws?user_id=${user_id}`)
             ws.onmessage = function(event) {
                 const { sender, channel, content, message_type } = JSON.parse(event.data)
@@ -44,53 +45,73 @@
             }
 
             function sendmessage(event) {
-                const input = document.getElementById("messageText")
-                ws.send(JSON.stringify({ message: input.value, channel_id: channel_id }))
-                input.value = ''
                 event.preventDefault()
+                const input = document.getElementById("messageText")
+                if(input.value) {
+                    ws.send(JSON.stringify({ content: input.value, channel_id: channel_id }))
+                    input.value = ''
+                }
             }
 
             async function fetchChannels() {
                 const res = await fetch(`http://localhost:8000/channels/?user_id=${user_id}`)
                 const {channels} = await res.json()
+                channels_list = channels
                 const list = document.getElementById("channels")
                 list.innerHTML = ""
                 channels.forEach(channel => {
                     const li = document.createElement("li")
                     li.classList.add("px-2", "py-2", "mb-1", "rounded-0", "fs-4", "border-bottom")
                     li.style.cursor = "pointer"
-                    li.textContent = channel
+                    li.textContent = channel['channel_name']
                     li.onclick = () => switchChannel(channel)
                     list.appendChild(li)
                 })
             }
 
-            function switchChannel(channel) {
-                channel_id = channel
-                document.getElementById("channel_name").innerHTML = channel;
-                const messages = document.getElementById("messages")
+            async function switchChannel(channel) {
+                channel_id = channel['channel_name']
+                if (!channels_masseges[channel['channel_id']]){
+                    response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/?user_id=${user_id}`);
+                    data = await response.json()
+                    channels_masseges[channel['channel_id']] = data["messages"]
+                }
+                document.getElementById("channel_name").innerHTML = channel['channel_name'];
+                const messages = document.getElementById("messages");
                 messages.innerHTML = "";
-                (channels_masseges[channel] || []).forEach(({ sender, channel, content }) => {
+                channels_masseges[channel['channel_id']].forEach(({ sender, channel, content }) => {
                     const li = create_message(sender, channel, content)
                     messages.appendChild(li)
                 })
                 messages.scrollTop = messages.scrollHeight
             }
-            fetchChannels()
+            fetchChannels().then(() => switchChannel((channels_list[0]||{"channel_name":"global","channel_id":"global",})))
             async function add_contact(other_user) {
-                const res = await fetch(`http://localhost:8000/channels/add_contact/?user_id=${user_id}&added_user_id=${other_user}`, {method:"POST"})
+                const res = await fetch(`http://localhost:8000/channels/add_contact/?user_id=${user_id}`, 
+                                            {method:"POST", 
+                                            headers: {"Content-Type": "application/json"},
+                                            body: JSON.stringify({user_id:other_user})}
+                )
                 console.log(other_user)
                 await fetchChannels()
             }
 
             async function createGroup(group_id) {
-                const res = await fetch(`http://localhost:8000/channels/create_group/?user_id=${user_id}&channel_id=${group_id}`, {method:"POST"})
+                const res = await fetch(`http://localhost:8000/channels/create_group/?user_id=${user_id}`, 
+                                            {method:"POST", 
+                                            headers: {"Content-Type": "application/json"},
+                                            body: JSON.stringify({channel_name: group_id})})
+                const data = await res.json()
                 await fetchChannels()
-                switchChannel(group_id)
+                await switchChannel(data)
             }
 
             async function inviteUser(other_user) {
-                const res = await fetch(`http://localhost:8000/channels/invite/${channel_id}?user_id=${user_id}&added_user_id=${other_user}`, {method:"POST"})
+                const res = await fetch(`http://localhost:8000/channels/invite/?user_id=${user_id}`,
+                                            {method:"POST", 
+                                            headers: {"Content-Type": "application/json"},
+                                            body: JSON.stringify({channel_id:channel_id,
+                                                                  added_user_id:other_user})})
                 await fetchChannels()
             }
         </script>
