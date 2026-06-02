@@ -1,11 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List
 
 class NewChannelData(BaseModel):
     channel_name:str
 
 class ContactUserData(BaseModel):
-    user_id:str
+    user_email:EmailStr
 
 class InviteUserData(BaseModel):
     channel_id:str
@@ -30,3 +30,4 @@ class ChannelsList(BaseModel):
 
 class ChannelMessages(BaseModel):
     messages:List[ResponseMessage]
+    users:dict

@@ -12,13 +12,68 @@
         <div class="row justify-content-center">
             <div class="col-md-4">
                 <h1 class="text-center">Login</h1>
-                <form action="" method="get"
-                    onsubmit="this.action = window.location.origin + '/chat?user_id=' + this.user_id.value">
-                    <input type="text" class="form-control" name="user_id" autocomplete="off" placeholder="Enter your name">
-                    <button class="btn btn-outline-primary mt-2 w-100">Login</button>
+                <form action="" onsubmit="login(event)" >
+                    <div id="aditionalData" class="collapse">
+                        
+                    </div>
+                    <div class="form-floating mt-3">
+                        <input id="emailInput" type="text" class="form-control" placeholder="Email">
+                        <label>Email</label>
+                    </div>
+                    <div class="form-floating mt-3">
+                        <input id="passwordInput" type="password" class="form-control"  placeholder="Password">
+                        <label>Password</label>
+                    </div>
+                    <div id="aditionalData" class="collapse">
+                        <div class="form-floating mt-3">
+                            <input id="userNameInput" type="text" class="form-control" placeholder="User Name">
+                            <label>User Name</label>
+                        </div>
+                    </div>
+                    <button id="submit_button" class="btn btn-primary mt-2 w-100 mt-3">Login</button>
                 </form>
+                <button id="toggleLoginButton" onclick="toggle_login()" data-bs-toggle="collapse" data-bs-target="#aditionalData" class="btn btn-outline-secondary mt-2 w-100 mt-3">Register Instead ?</button>
             </div>
         </div>
     </div>
+    <script>
+        var login_mode = true
+        function toggle_login(){
+            login_mode = !login_mode
+            document.getElementById("toggleLoginButton").innerHTML = login_mode?"Register Instead ?":"Login Instead ?"
+            document.getElementById("submit_button").innerHTML = login_mode?"Login":"Register"
+        }
+        async function login(event) {
+            event.preventDefault()
+            const email = document.getElementById("emailInput").value
+            const password = document.getElementById("passwordInput").value
+            const username = document.getElementById("userNameInput").value
+            if (login_mode){
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                    });
+                const data = await res.json();
+                if(res.ok){
+                    sessionStorage.setItem('authData', JSON.stringify(data))
+                    window.location = window.location.origin + '/chat?user_id=' + email
+                }
+            }
+            else{
+                const res = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, username})
+                    });
+                const data = await res.json();
+                if(res.ok){
+                    sessionStorage.setItem('authData', JSON.stringify(data))
+                    window.location = window.location.origin + '/chat?user_id=' + username
+                }
+            }
+            
+        }
+    </script>
 </body>
 </html>

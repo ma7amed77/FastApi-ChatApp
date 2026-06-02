@@ -22,12 +22,12 @@ class ChannelsManager():
         members = await self.redis.smembers(f"Chan:{channel_id}")
         return [m for m in members]
     
-    async def is_user_in_channel(self, user_id, channel_id):
-        return await self.redis.sismember(f"Chan:{channel_id}", user_id)
-    
     async def get_user_channels(self, user_id):
         channels = await self.redis.smembers(f"Usr:{user_id}")
         return [{'channel_id':c, 'channel_name':c} for c in channels]
+
+    async def is_user_in_channel(self, user_id, channel_id):
+        return await self.redis.sismember(f"Chan:{channel_id}", user_id)
     
     async def remove_user_from_channel(self, user_id, channel_id):
         await self.redis.srem(f"Chan:{channel_id}", user_id)

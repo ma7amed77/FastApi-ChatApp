@@ -1,13 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import logging
 from .chat.controller import chat_router, channels_router
+from .auth.controller import auth_router
+from .database import init_db
 
-logger =  logging.getLogger(__name__)
+@asynccontextmanager
+async def life_span(app:FastAPI):
+    print("Server is Starting ..... ")
+    await init_db()
+    yield
+    print("Server Stopped :(")
 
-app = FastAPI()
+app = FastAPI(lifespan=life_span)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,5 +34,6 @@ async def login_page():
 async def chat_page():
     return FileResponse('static/chat.html')
 
+app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(channels_router)

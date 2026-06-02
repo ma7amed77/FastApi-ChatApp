@@ -7,16 +7,20 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">    
         <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         <script defer>
-            const user_id = new URLSearchParams(window.location.search).get("user_id")
             var channel_id = "global"
             var channels_masseges = {}
+            var users_usernames = {"system":"System"}
             var channels_list = []
-            const ws = new WebSocket(`ws://localhost:8000/ws?user_id=${user_id}`)
+            const authData = JSON.parse(sessionStorage.getItem('authData'));
+            console.log(authData)
+            const user_id = authData['user_id']
+            const header_temp = {"Authorization": `Bearer ${authData['access_token']}`,"Content-Type": "application/json"}
+            const ws = new WebSocket(`ws://localhost:8000/ws?token=${authData['access_token']}`)
             ws.onmessage = function(event) {
                 const { sender, channel, content, message_type } = JSON.parse(event.data)
                 console.log(event.data)
                 if(message_type == "new_channel"){
-                    if (!channels_masseges[channel]) {fetchChannels(); console.log("ASD")}
+                    if (!channels_masseges[channel]) {fetchChannels();}
                 }
 
                 if (!channels_masseges[channel]) {channels_masseges[channel] = []}
@@ -35,7 +39,7 @@
                 li.classList.add("list-unstyled", "mb-3", "d-flex", "w-100", sender === user_id ? "justify-content-end" : "justify-content-start")
                 li.innerHTML = `
                     <div class="d-flex flex-column align-items-${sender === user_id ? 'end' : 'start'}" style="max-width: 70%">
-                        <small class="text-secondary mb-1">${sender} · ${channel}</small>
+                        <div class="text-secondary mb-1">${users_usernames[sender]}</div>
                         <div class="${sender === user_id ? 'bg-primary' : 'bg-secondary-subtle'} px-3 py-2 rounded-3 w-100" style="word-break: break-word">
                             ${content}
                         </div>
@@ -54,7 +58,7 @@
             }
 
             async function fetchChannels() {
-                const res = await fetch(`http://localhost:8000/channels/?user_id=${user_id}`)
+                const res = await fetch(`http://localhost:8000/channels/?user_id=${user_id}`, {method: "GET", headers:header_temp})
                 const {channels} = await res.json()
                 channels_list = channels
                 const list = document.getElementById("channels")
@@ -72,9 +76,10 @@
             async function switchChannel(channel) {
                 channel_id = channel['channel_name']
                 if (!channels_masseges[channel['channel_id']]){
-                    response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/?user_id=${user_id}`);
+                    response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/?user_id=${user_id}`, {method: "GET", headers:header_temp});
                     data = await response.json()
                     channels_masseges[channel['channel_id']] = data["messages"]
+                    Object.assign(users_usernames, data["users"]);
                 }
                 document.getElementById("channel_name").innerHTML = channel['channel_name'];
                 const messages = document.getElementById("messages");
@@ -87,10 +92,10 @@
             }
             fetchChannels().then(() => switchChannel((channels_list[0]||{"channel_name":"global","channel_id":"global",})))
             async function add_contact(other_user) {
-                const res = await fetch(`http://localhost:8000/channels/add_contact/?user_id=${user_id}`, 
+                const res = await fetch(`http://localhost:8000/channels/add_contact/`, 
                                             {method:"POST", 
-                                            headers: {"Content-Type": "application/json"},
-                                            body: JSON.stringify({user_id:other_user})}
+                                            headers: header_temp,
+                                            body: JSON.stringify({user_email:other_user})}
                 )
                 console.log(other_user)
                 await fetchChannels()
@@ -99,7 +104,7 @@
             async function createGroup(group_id) {
                 const res = await fetch(`http://localhost:8000/channels/create_group/?user_id=${user_id}`, 
                                             {method:"POST", 
-                                            headers: {"Content-Type": "application/json"},
+                                            headers:header_temp,
                                             body: JSON.stringify({channel_name: group_id})})
                 const data = await res.json()
                 await fetchChannels()
@@ -109,7 +114,7 @@
             async function inviteUser(other_user) {
                 const res = await fetch(`http://localhost:8000/channels/invite/?user_id=${user_id}`,
                                             {method:"POST", 
-                                            headers: {"Content-Type": "application/json"},
+                                            headers: header_temp,
                                             body: JSON.stringify({channel_id:channel_id,
                                                                   added_user_id:other_user})})
                 await fetchChannels()
@@ -155,7 +160,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="m-3 mb-0">
-                        <input type="text" class="form-control" placeholder="User ID / Group Name" id="newChatInput">
+                        <input type="text" class="form-control" placeholder="User email / Group Name" id="newChatInput">
                     </div>
                     <div class="modal-body d-flex gap-3 justify-content-center py-4">
                         <button class="btn btn-outline-primary d-flex flex-column align-items-center gap-2 p-4 fs-5"
