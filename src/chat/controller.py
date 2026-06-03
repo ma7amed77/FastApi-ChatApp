@@ -63,6 +63,21 @@ async def get_channels(user_details = Depends(access_token_bearer)):
     channels = await channels_manager.get_user_channels(user_details['sub'])
     return {"channels": channels}
 
+@channels_router.get("/missed", response_model=schema.ChannelMessages)
+async def get_missed_messages(user_details = Depends(access_token_bearer), session:AsyncSession = Depends(get_session)):
+    messages = await messages_manager.fetch_missed_messages(user_details['sub'])
+    message_dicts = []
+    users_uids = set()
+    for message in messages:
+        try:
+            message_dict = eval(message)
+            message_dicts.append(message_dict)
+            users_uids.add(message_dict['sender'])
+        except Exception as e:
+            logger.error("Failed to parse missed message: %s", e, exc_info=True)
+    users_dict = await get_usernames(list(users_uids), session)
+    return {"messages": message_dicts, "users": users_dict}
+
 @channels_router.get("/{channel_id}", response_model=schema.ChannelMessages)
 async def get_channel_messages(channel_id: str, user_details = Depends(access_token_bearer), session:AsyncSession = Depends(get_session)):
     if not await channels_manager.is_user_in_channel(user_details['sub'], channel_id):

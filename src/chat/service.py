@@ -49,12 +49,18 @@ class WebSocketsManager():
 class MessagesManager():
     @staticmethod
     def create_message(sender:str, channel:str, content:str, message_type:str="message"):
-        return {"sender":sender, "channel":channel, "content":content, "message_type":message_type}
+        return {"sender":sender, "channel_id":channel, "content":content, "message_type":message_type}
     
     def __init__(self, channels_manager, sockets_manager):
         self.channels_manager = channels_manager
         self.sockets_manager = sockets_manager
         self.channel_messages = {}
+        self.missed_messages_redis = aioredis.StrictRedis(
+            host=Config.REDIS_HOST,
+            port=Config.REDIS_PORT,
+            db= 2,
+            decode_responses=True
+        )
     
     async def get_channel_messages(self, channel_id, session: AsyncSession, limit=50, offset=0):
         result = await session.exec(
@@ -68,7 +74,7 @@ class MessagesManager():
 
     async def store_message(self, message, session: AsyncSession):
         statement = Message(
-            channel_id=message['channel'],
+            channel_id=message['channel_id'],
             sender=message['sender'],
             content=message['content'],
             message_type=message['message_type']
@@ -76,11 +82,16 @@ class MessagesManager():
         session.add(statement)
         await session.commit()
 
+    async def fetch_missed_messages(self, user):
+        messages = await self.missed_messages_redis.lrange(f"Missed:{user}", 0, -1)
+        await self.missed_messages_redis.delete(f"Missed:{user}")
+        return messages
+    
     async def store_missed_message(self, user, message):
-        pass
+        await self.missed_messages_redis.lpush(f"Missed:{user}", str(message))
 
     async def send_message(self, message, session: AsyncSession):
-        users_to_send_to = await self.channels_manager.get_channel_users(message['channel'])
+        users_to_send_to = await self.channels_manager.get_channel_users(message['channel_id'])
         await self.store_message(message, session) #Store data in postgreSQL
         for user in users_to_send_to:
             socket_to_send_to = self.sockets_manager.get_socket(user)

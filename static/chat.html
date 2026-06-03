@@ -7,7 +7,7 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">    
         <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         <script defer>
-            var channel_id = "global"
+            var cur_channel_id = "global"
             var channels_masseges = {}
             var users_usernames = {"system":"System"}
             var channels_list = []
@@ -17,21 +17,35 @@
             const header_temp = {"Authorization": `Bearer ${authData['access_token']}`,"Content-Type": "application/json"}
             const ws = new WebSocket(`ws://localhost:8000/ws?token=${authData['access_token']}`)
             ws.onmessage = function(event) {
-                const { sender, channel, content, message_type } = JSON.parse(event.data)
+                const { sender, channel_id, content, message_type } = JSON.parse(event.data)
                 console.log(event.data)
                 if(message_type == "new_channel"){
-                    if (!channels_masseges[channel]) {fetchChannels();}
+                    if (!channels_masseges[channel_id]) {fetchChannels();}
                 }
 
-                if (!channels_masseges[channel]) {channels_masseges[channel] = []}
-                channels_masseges[channel].push({ "sender":sender, "channel":channel, "content":content})
+                if (!channels_masseges[channel_id]) {channels_masseges[channel_id] = []}
+                channels_masseges[channel_id].push({ "sender":sender, "channel":channel_id, "content":content})
 
-                if (channel !== channel_id) return
+                if (channel_id !== cur_channel_id) {showMissedToast(channel_id, [{ sender, content }], delay = 0)}
                 const messages = document.getElementById("messages")
 
-                const li = create_message(sender, channel, content)
+                const li = create_message(sender, channel_id, content)
                 messages.appendChild(li)
                 messages.scrollTop = messages.scrollHeight
+            }
+
+            async function fetchMissedMessages() {
+                const res = await fetch(`http://localhost:8000/channels/missed/`, {method: "GET", headers:header_temp})
+                const {messages, users} = await res.json()
+                users_usernames = {...users_usernames, ...users}
+                const grouped = {};
+                messages.forEach(({ sender, channel_id, content }) => {
+                    if (!grouped[channel_id]) grouped[channel_id] = [];
+                    grouped[channel_id].push({ sender, content });
+                });
+                Object.entries(grouped).forEach(([channel_id, msgs], i) => {
+                    showMissedToast(channel_id, msgs, i);
+                });
             }
 
             function create_message(sender, channel, content){
@@ -48,11 +62,49 @@
                 return li
             }
 
+            function showMissedToast(channel, msgs, delay = 0) {
+                const senderName = users_usernames[msgs[0].sender] ?? msgs[0].sender;
+                const count = msgs.length;
+                const preview = msgs[0].content.length > 60
+                    ? msgs[0].content.slice(0, 60) + "…"
+                    : msgs[0].content;
+
+                const toastHtml = `
+                    <div class="toast align-items-center text-bg-primary border-0 mb-2"
+                        role="alert" aria-live="assertive" aria-atomic="true"
+                        data-bs-delay="5000">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                        <strong>#${channel}</strong>
+                        <span class="badge bg-light text-primary ms-1">${count} new</span><br>
+                        <small class="text-white-50">${senderName}${count > 1 ? ` +${count - 1} others` : ""}</small><br>
+                        ${preview}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                                data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    </div>`;
+
+                const container = document.getElementById("toast-container");
+                const wrapper = document.createElement("div");
+                wrapper.innerHTML = toastHtml.trim();
+                const toastEl = wrapper.firstChild;
+                container.appendChild(toastEl);
+
+                // Stagger toasts so they don't all pop at once
+                setTimeout(() => {
+                    bootstrap.Toast.getOrCreateInstance(toastEl).show();
+                }, delay * 400);
+
+                // Clean up DOM after toast hides
+                toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+            }
+
             function sendmessage(event) {
                 event.preventDefault()
                 const input = document.getElementById("messageText")
                 if(input.value) {
-                    ws.send(JSON.stringify({ content: input.value, channel_id: channel_id }))
+                    ws.send(JSON.stringify({ content: input.value, channel_id: cur_channel_id }))
                     input.value = ''
                 }
             }
@@ -74,7 +126,7 @@
             }
 
             async function switchChannel(channel) {
-                channel_id = channel['channel_name']
+                cur_channel_id = channel['channel_name']
                 if (!channels_masseges[channel['channel_id']]){
                     response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/`, {method: "GET", headers:header_temp});
                     data = await response.json()
@@ -90,14 +142,13 @@
                 })
                 messages.scrollTop = messages.scrollHeight
             }
-            fetchChannels().then(() => switchChannel((channels_list[0]||{"channel_name":"global","channel_id":"global",})))
+            fetchChannels().then(() => switchChannel((channels_list[0]||{"channel_name":"global","channel_id":"global",}))).then(() => fetchMissedMessages())
             async function add_contact(other_user) {
                 const res = await fetch(`http://localhost:8000/channels/add_contact/`, 
                                             {method:"POST", 
                                             headers: header_temp,
                                             body: JSON.stringify({user_email:other_user})}
                 )
-                console.log(other_user)
                 await fetchChannels()
             }
 
@@ -115,13 +166,15 @@
                 const res = await fetch(`http://localhost:8000/channels/invite/?user_id=${user_id}`,
                                             {method:"POST", 
                                             headers: header_temp,
-                                            body: JSON.stringify({channel_id:channel_id,
+                                            body: JSON.stringify({channel_id:cur_channel_id,
                                                                   added_user_id:other_user})})
                 await fetchChannels()
             }
         </script>
     </head>
     <body class="overflow-hidden">
+        <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+        </div>
         <div class="container-fluid m-0 p-0 vh-100 d-flex">
             <div class="border-end pt-4 d-flex flex-column" style="width: 250px">
                 <h2 class="px-3">FastApi Chat</h2>

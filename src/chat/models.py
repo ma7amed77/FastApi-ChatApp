@@ -5,7 +5,7 @@ import uuid
 
 class Message(SQLModel, table=True):
     uid: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    channel_id: str = Field(index=True)
+    channel_id: str = Field(index=True) 
     sender: str
     content: str
     message_type: str = Field(default="message")
