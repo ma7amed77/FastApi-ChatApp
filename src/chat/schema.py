@@ -17,7 +17,7 @@ class RequestMessage(BaseModel):
 
 class ResponseMessage(BaseModel):
     sender:str
-    channel:str
+    channel_id:str
     content:str
     message_type:str
 

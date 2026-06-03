@@ -1,7 +1,9 @@
 from fastapi import WebSocket
 import redis.asyncio as aioredis
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 from src.config import Config
-
+from .models import Message
 
 class ChannelsManager():
     def __init__(self):
@@ -54,20 +56,32 @@ class MessagesManager():
         self.sockets_manager = sockets_manager
         self.channel_messages = {}
     
-    async def get_channel_messages(self, channel_id): #TODO This should be replaced with postgreSQL
-        return self.channel_messages.get(channel_id, [])
+    async def get_channel_messages(self, channel_id, session: AsyncSession, limit=50, offset=0):
+        result = await session.exec(
+            select(Message)
+            .where(Message.channel_id == channel_id)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return result.all()
 
-    async def store_message(self, message): #TODO This should be replaced with postgreSQL
-        if message['channel'] not in self.channel_messages: 
-            self.channel_messages[message['channel']] = []
-        self.channel_messages[message['channel']].append(message)
+    async def store_message(self, message, session: AsyncSession):
+        statement = Message(
+            channel_id=message['channel'],
+            sender=message['sender'],
+            content=message['content'],
+            message_type=message['message_type']
+            )
+        session.add(statement)
+        await session.commit()
 
     async def store_missed_message(self, user, message):
         pass
 
-    async def send_message(self, message):
+    async def send_message(self, message, session: AsyncSession):
         users_to_send_to = await self.channels_manager.get_channel_users(message['channel'])
-        await self.store_message(message) #Store data in postgreSQL
+        await self.store_message(message, session) #Store data in postgreSQL
         for user in users_to_send_to:
             socket_to_send_to = self.sockets_manager.get_socket(user)
             if socket_to_send_to:
@@ -75,5 +89,5 @@ class MessagesManager():
             else:
                 await self.store_missed_message(user, message) #Store data in Redis for notifications
     
-    async def sendNewChannelMessage(self, message, user):
-        await self.send_message(message)
+    async def sendNewChannelMessage(self, message, user, session: AsyncSession):
+        await self.send_message(message, session)

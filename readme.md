@@ -126,7 +126,7 @@ All REST endpoints require `Authorization: Bearer <token>`.
 - [x] Redis-backed channel membership
 - [x] Group channels and direct messages
 - [x] Pydantic schema validation
-- [ ] PostgreSQL message persistence
+- [x] PostgreSQL message persistence
 - [ ] Missed message queue and delivery on reconnect
 - [ ] Typing indicators
 - [ ] Message read receipts

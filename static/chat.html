@@ -76,7 +76,7 @@
             async function switchChannel(channel) {
                 channel_id = channel['channel_name']
                 if (!channels_masseges[channel['channel_id']]){
-                    response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/?user_id=${user_id}`, {method: "GET", headers:header_temp});
+                    response = await fetch(`http://localhost:8000/channels/${channel['channel_id']}/`, {method: "GET", headers:header_temp});
                     data = await response.json()
                     channels_masseges[channel['channel_id']] = data["messages"]
                     Object.assign(users_usernames, data["users"]);
