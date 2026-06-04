@@ -128,7 +128,7 @@ All REST endpoints require `Authorization: Bearer <token>`.
 - [x] Pydantic schema validation
 - [x] PostgreSQL message persistence
 - [x] Missed message queue and delivery on reconnect
+- [x] Rate limiting
 - [ ] Typing indicators
 - [ ] Message read receipts
 - [ ] Horizontal scaling via Redis Pub/Sub
-- [ ] Rate limiting
