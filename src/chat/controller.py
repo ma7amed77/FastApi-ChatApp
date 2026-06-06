@@ -46,6 +46,7 @@ async def websocket_endpoint(web_socket:WebSocket, token:str = Query()):
                     message = schema.RequestMessage.model_validate_json(data)
                 except ValidationError as e:
                     await web_socket.send_json({"error": "Invalid message format", "details": e.errors()})
+                    print(f"Invalid message format from user {user_id}: {e.errors()}")
                     continue
                 await messages_manager.send_message(MessagesManager.create_message(user_id, message.channel_id, message.content), session) 
 
